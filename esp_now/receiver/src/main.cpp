@@ -1,23 +1,33 @@
 #include <Arduino.h>
-#include <ESP8266WiFi.h>
-#include <cstdint>
-#include <espnow.h>
+#include <WiFi.h>
+#include <esp_now.h>
 
 const int NUM_LEDS = 5;
-const int led_pins[NUM_LEDS] = {D1, D2, D5, D6, D7};
+const int led_pins[NUM_LEDS] = {23, 22, 21, 19,
+                                18}; // Example GPIO pins for ESP32
 
 typedef struct struct_message {
   int count = 0;
 } struct_message;
-volatile bool newDataAvailable = false;
 
 volatile struct_message myData;
+volatile bool newDataAvailable = false;
+// Callback function that will be executed when ESP-NOW data is received
+void OnDataRecv(const uint8_t *mac_addr, const uint8_t *incomingData, int len) {
+  // Create a temporary, non-volatile structure to copy the data into first.
+  struct_message temp_data;
+  memcpy(&temp_data, incomingData, sizeof(temp_data));
 
-void OnDataRecv(uint8_t *mac, uint8_t *incomingData, uint8_t len) {
-  memcpy((void *)&myData, incomingData, sizeof(myData));
-
+  // Now, assign the temporary data to the volatile global variable.
+  // This is a safe operation.
+  myData.count = temp_data.count;
   Serial.print("Data received. Count: ");
   Serial.println(myData.count);
+  Serial.print("From MAC Address: ");
+  char macStr[18];
+  snprintf(macStr, sizeof(macStr), "%02x:%02x:%02x:%02x:%02x:%02x", mac_addr[0],
+           mac_addr[1], mac_addr[2], mac_addr[3], mac_addr[4], mac_addr[5]);
+  Serial.println(macStr);
 
   newDataAvailable = true;
 }
@@ -37,7 +47,6 @@ void updateRelays() {
   if (myData.count > 0 && myData.count <= NUM_LEDS) {
     for (int i = 0; i < myData.count; i++) {
       digitalWrite(led_pins[i], LOW); // Turn relay ON (LOW signal)
-
       Serial.println("  -> Turning ON relay " + String(i + 1));
     }
   } else if (myData.count > NUM_LEDS) {
@@ -53,29 +62,31 @@ void updateRelays() {
 
 void setup() {
   Serial.begin(115200);
-  Serial.println("ESP-NOW Relay Receiver");
+  Serial.println("ESP32 ESP-NOW Relay Receiver");
+
+  // Set device as a Wi-Fi Station
+  WiFi.mode(WIFI_STA);
 
   // Get and print the MAC address of this receiver.
   // You MUST use this address in the sender's code.
   Serial.print("Receiver MAC Address: ");
   Serial.println(WiFi.macAddress());
 
-  // Use a loop to initialize the pins. It's cleaner.
+  // Use a loop to initialize the pins.
   for (int i = 0; i < NUM_LEDS; i++) {
     pinMode(led_pins[i], OUTPUT);
     digitalWrite(led_pins[i], HIGH); // Initialize all relays to OFF.
   }
 
-  WiFi.mode(WIFI_STA);
-
   // Initialize ESP-NOW
-  if (esp_now_init() != 0) {
+  if (esp_now_init() != ESP_OK) {
     Serial.println("Error initializing ESP-NOW");
     return;
   }
 
-  // Set the role and register the receive callback function.
-  esp_now_set_self_role(ESP_NOW_ROLE_SLAVE);
+  // Register the receive callback function.
+  // The role is automatically determined. No need for esp_now_set_self_role()
+  // on ESP32.
   esp_now_register_recv_cb(OnDataRecv);
 }
 

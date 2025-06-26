@@ -4,11 +4,24 @@
 
 // `48:3F:DA:47:80:41`
 // New mac `C4:D8:D5:12:C6:03`
-uint8_t broadcastAddress[] = {0xC4, 0xD8, 0xD5, 0x12, 0xC6, 0x03};
+// New MAC ESP32 78:42:1c:6c:90:2c
+// NOTE: This is the mac of the ESP32 receiver
+uint8_t brodcastAddress[] = {0x78, 0x42, 0x1C, 0x6C, 0x90, 0x2C};
 
 #define BUTTON_PIN D5
+#define DEBOUNCE_DELAY 50 // ms
 
-int button_pressed_count = 0;
+volatile unsigned long last_button_press_time = 0;
+volatile int button_pressed_count = 0;
+
+void IRAM_ATTR button_isr() {
+  unsigned long current_time = millis();
+  if (current_time - last_button_press_time > DEBOUNCE_DELAY) {
+    Serial.println("Button pressed!");
+    button_pressed_count++;
+    last_button_press_time = current_time;
+  }
+}
 // Structure example to send data
 // Must match the receiver structure
 typedef struct struct_message {
@@ -52,7 +65,7 @@ void setup() {
   esp_now_register_send_cb(OnDataSent);
 
   // Register peer
-  esp_now_add_peer(broadcastAddress, ESP_NOW_ROLE_SLAVE, 1, NULL, 0);
+  esp_now_add_peer(brodcastAddress, ESP_NOW_ROLE_SLAVE, 1, NULL, 0);
 }
 
 void loop() {
@@ -60,7 +73,7 @@ void loop() {
 
   if ((millis() - lastTime) > timerDelay) {
 
-    esp_now_send(broadcastAddress, (uint8_t *)&myData, sizeof(myData));
+    esp_now_send(brodcastAddress, (uint8_t *)&myData, sizeof(myData));
 
     lastTime = millis();
   }
