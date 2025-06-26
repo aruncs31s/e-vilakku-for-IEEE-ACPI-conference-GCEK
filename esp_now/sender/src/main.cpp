@@ -16,6 +16,7 @@ volatile int button_pressed_count = 0;
 
 void IRAM_ATTR button_isr() {
   unsigned long current_time = millis();
+  // Check if this works as expected.
   if (current_time - last_button_press_time > DEBOUNCE_DELAY) {
     Serial.println("Button pressed!");
     button_pressed_count++;
