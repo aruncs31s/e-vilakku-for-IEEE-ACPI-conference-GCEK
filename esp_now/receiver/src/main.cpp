@@ -3,16 +3,15 @@
 #include <esp_now.h>
 
 const int NUM_LEDS = 5;
-const int led_pins[NUM_LEDS] = {23, 22, 21, 19,
-                                18}; // Example GPIO pins for ESP32
+const int led_pins[NUM_LEDS] = {23, 22, 21, 19, 18};
 
+// Same as Sender
 typedef struct struct_message {
   int count = 0;
 } struct_message;
 
 volatile struct_message myData;
 volatile bool newDataAvailable = false;
-// Callback function that will be executed when ESP-NOW data is received
 void OnDataRecv(const uint8_t *mac_addr, const uint8_t *incomingData, int len) {
   // Create a temporary, non-volatile structure to copy the data into first.
   struct_message temp_data;
@@ -29,6 +28,7 @@ void OnDataRecv(const uint8_t *mac_addr, const uint8_t *incomingData, int len) {
            mac_addr[1], mac_addr[2], mac_addr[3], mac_addr[4], mac_addr[5]);
   Serial.println(macStr);
 
+  // set flag to indicate that, new data is available
   newDataAvailable = true;
 }
 
@@ -36,28 +36,31 @@ void updateRelays() {
   Serial.print("Updating relays for state: ");
   Serial.println(myData.count);
 
-  // First, turn all relays OFF (by sending a HIGH signal).
+  // First, turn all relays ON (by sending  LOW signal).
+  /* NOTE: Why initially turning them on.
+   * The light is to be kept ON until the program ends, which is about 9 hours.
+   * The battery will not last that long, so when the esp32 dies we have to keep
+   * the relays ON.
+   */
+
   // This ensures a clean slate for every command.
   for (int i = 0; i < NUM_LEDS; i++) {
-    digitalWrite(led_pins[i], HIGH);
+    digitalWrite(led_pins[i], LOW);
   }
 
-  // The logic is now "turn on lights from 1 up to the received count".
-  // For example, if count is 3, lights 1, 2, and 3 will turn on.
+  // Turn on the led in an incremental order
   if (myData.count > 0 && myData.count <= NUM_LEDS) {
     for (int i = 0; i < myData.count; i++) {
-      digitalWrite(led_pins[i], LOW); // Turn relay ON (LOW signal)
-      Serial.println("  -> Turning ON relay " + String(i + 1));
+      digitalWrite(led_pins[i], HIGH); // Turn OFF the relay (NC mode)
+      Serial.println("  -> Turning OFF relay " + String(i + 1));
     }
   } else if (myData.count > NUM_LEDS) {
-    // A special case: if the count is higher than our number of relays,
-    // we can assume it means "turn them all on".
+    // if count is > total number of relays, then turn them all on.
     for (int i = 0; i < NUM_LEDS; i++) {
-      digitalWrite(led_pins[i], LOW);
+      digitalWrite(led_pins[i], HIGH);
     }
     Serial.println("  -> Turning ON ALL relays (count > NUM_LEDS).");
   }
-  // If myData.count is 0, all relays will remain off from the initial loop.
 }
 
 void setup() {
@@ -67,34 +70,28 @@ void setup() {
   // Set device as a Wi-Fi Station
   WiFi.mode(WIFI_STA);
 
-  // Get and print the MAC address of this receiver.
-  // You MUST use this address in the sender's code.
-  Serial.print("Receiver MAC Address: ");
+  Serial.print("This Mac: ");
   Serial.println(WiFi.macAddress());
 
   // Use a loop to initialize the pins.
   for (int i = 0; i < NUM_LEDS; i++) {
     pinMode(led_pins[i], OUTPUT);
-    digitalWrite(led_pins[i], HIGH); // Initialize all relays to OFF.
+    digitalWrite(led_pins[i], LOW); // Initialize all relays to OFF.
   }
-
+  delay(50);
   // Initialize ESP-NOW
   if (esp_now_init() != ESP_OK) {
     Serial.println("Error initializing ESP-NOW");
     return;
   }
 
-  // Register the receive callback function.
-  // The role is automatically determined. No need for esp_now_set_self_role()
-  // on ESP32.
   esp_now_register_recv_cb(OnDataRecv);
 }
 
 void loop() {
-  // The main loop just checks if new data has arrived.
+  // Check if new data is available.
   if (newDataAvailable) {
-    newDataAvailable = false; // Reset the flag immediately.
-    updateRelays();           // Call the function to update the relays.
+    newDataAvailable = false;
+    updateRelays();
   }
-  // No delay is needed. The logic is event-driven.
 }

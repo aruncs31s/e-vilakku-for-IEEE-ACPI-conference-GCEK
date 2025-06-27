@@ -16,15 +16,13 @@ volatile int button_pressed_count = 0;
 
 void IRAM_ATTR button_isr() {
   unsigned long current_time = millis();
-  // Check if this works as expected.
+  // Check if this works as expected. It does avoid multiple counts.
   if (current_time - last_button_press_time > DEBOUNCE_DELAY) {
     Serial.println("Button pressed!");
     button_pressed_count++;
     last_button_press_time = current_time;
   }
 }
-// Structure example to send data
-// Must match the receiver structure
 typedef struct struct_message {
   int count;
 } struct_message;
@@ -38,16 +36,11 @@ unsigned long timerDelay = 2000;
 void OnDataSent(uint8_t *mac_addr, uint8_t sendStatus) {
   Serial.print("Last Packet Send Status: ");
   if (sendStatus == 0) {
-    Serial.println("Delivery success");
+    Serial.println("Success");
   } else {
-    Serial.println("Delivery fail");
+    Serial.println("Faild");
   }
 }
-void IRAM_ATTR button_isr() {
-  Serial.println("Button pressed!");
-  button_pressed_count += 1;
-}
-
 void setup() {
   // Init Serial Monitor
   Serial.begin(115200);
@@ -70,8 +63,11 @@ void setup() {
 }
 
 void loop() {
-  myData.count = button_pressed_count / 2;
-
+  myData.count = button_pressed_count;
+  if (button_pressed_count > 10) {
+    // Reset count
+    button_pressed_count = 0;
+  }
   if ((millis() - lastTime) > timerDelay) {
 
     esp_now_send(brodcastAddress, (uint8_t *)&myData, sizeof(myData));

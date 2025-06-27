@@ -15,8 +15,7 @@ void setup() {
 }
 
 void loop() {
-  // Normally Open configuration, send LOW signal to let current flow
-  // (if you're usong Normally Closed configuration send HIGH signal)
+  // For NC
   digitalWrite(relay1, LOW);
   digitalWrite(relay2, LOW);
   digitalWrite(relay3, LOW);
@@ -25,8 +24,6 @@ void loop() {
   Serial.println("Current Flowing");
   delay(5000);
 
-  // Normally Open configuration, send HIGH signal stop current flow
-  // (if you're usong Normally Closed configuration send LOW signal)
   digitalWrite(relay1, HIGH);
   digitalWrite(relay2, HIGH);
   digitalWrite(relay3, HIGH);
